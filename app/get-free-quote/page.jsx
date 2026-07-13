@@ -1,7 +1,53 @@
 "use client";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import QuoteForm from "../components/QuoteForm"; // 👈 Line 5: Ensure 'QuoteForm.jsx' exists exactly like this inside app/components/
+import QuoteForm from "../components/QuoteForm"; 
+
+// URL data ko read karne ke liye ek inner component banaya taake Next.js build error na de
+function QuoteContent() {
+  const searchParams = useSearchParams();
+  
+  // URL se calculator ka data uthana (?size=5&price=350000)
+  const systemSize = searchParams.get("size") || "";
+  const estimatedPrice = searchParams.get("price") || "";
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+      <div className="space-y-4 md:col-span-1">
+        <div className="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm space-y-4">
+          <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b border-gray-50 pb-2">
+            Direct Support
+          </h3>
+          <div className="space-y-3 text-xs font-semibold">
+            <div className="flex gap-3 items-center">
+              <span className="text-lg">📞</span>
+              <div>
+                <span className="text-gray-400 block text-[10px]">Call Or WhatsApp</span>
+                <a href="tel:+923000000000" className="text-gray-800 hover:text-green-600">+92 300 0000000</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Chota sa info box agar calculator se data aa raha ho */}
+        {systemSize && (
+          <div className="bg-green-50/60 border border-green-100 p-4 rounded-2xl text-xs font-semibold text-green-800 space-y-1">
+            <p>📊 Selected on Calculator:</p>
+            <p>• System Capacity: <span className="font-bold">{systemSize} KW</span></p>
+            <p>• Approx Cost: <span className="font-bold">Rs. {Number(estimatedPrice).toLocaleString()}</span></p>
+          </div>
+        )}
+      </div>
+
+      {/* QuoteForm ko params pass kar diye taake wo read kar sake */}
+      <div className="md:col-span-2">
+        <QuoteForm initialSize={systemSize} initialPrice={estimatedPrice} />
+      </div>
+    </div>
+  );
+}
 
 export default function FreeQuotePage() {
   return (
@@ -22,28 +68,10 @@ export default function FreeQuotePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-            <div className="space-y-4 md:col-span-1">
-              <div className="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm space-y-4">
-                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b border-gray-50 pb-2">
-                  Direct Support
-                </h3>
-                <div className="space-y-3 text-xs font-semibold">
-                  <div className="flex gap-3 items-center">
-                    <span className="text-lg">📞</span>
-                    <div>
-                      <span className="text-gray-400 block text-[10px]">Call Or WhatsApp</span>
-                      <a href="tel:+923000000000" className="text-gray-800 hover:text-green-600">+92 300 0000000</a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <QuoteForm />
-            </div>
-          </div>
+          {/* Suspense boundary zaroori hai Next.js me useSearchParams use karne ke liye */}
+          <Suspense fallback={<div className="text-center py-6 text-xs font-semibold text-gray-500">Loading Form Parameters...</div>}>
+            <QuoteContent />
+          </Suspense>
         </section>
       </div>
 

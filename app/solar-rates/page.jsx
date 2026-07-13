@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
-// Real-world Full Pakistan Solar & Inverters Catalog
-const solarMarketData = [
+// Real-world Full Pakistan Solar & Inverters Catalog (With Watts property for calculation)
+const initialSolarMarketData = [
   // --- 12 SOLAR PLATES (PANELS) ---
   { 
     id: 1, 
@@ -14,6 +14,7 @@ const solarMarketData = [
     type: "Aiko Solar", 
     spec: "665W Premium High Efficiency", 
     rate: 30590, 
+    watts: 665,
     inStock: true,
     image: "https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=600&q=80"
   },
@@ -24,6 +25,7 @@ const solarMarketData = [
     type: "Aiko Solar", 
     spec: "770W Commercial Scale N-Type", 
     rate: 36960, 
+    watts: 770,
     inStock: false,
     image: "https://images.unsplash.com/photo-1613665813446-82a78c468a1d?auto=format&fit=crop&w=600&q=80"
   },
@@ -34,6 +36,7 @@ const solarMarketData = [
     type: "Astronergy", 
     spec: "715W Dual Glass Technology", 
     rate: 30745, 
+    watts: 715,
     inStock: true,
     image: "https://images.unsplash.com/photo-1592833159155-c62df1b65634?auto=format&fit=crop&w=600&q=80"
   },
@@ -44,6 +47,7 @@ const solarMarketData = [
     type: "Canadian Solar", 
     spec: "715W TopCon Module", 
     rate: 32175, 
+    watts: 715,
     inStock: true,
     image: "https://images.unsplash.com/photo-1624397640148-949b1732bb0a?auto=format&fit=crop&w=600&q=80"
   },
@@ -54,6 +58,7 @@ const solarMarketData = [
     type: "JA Solar", 
     spec: "625W DeepBlue Series", 
     rate: 27188, 
+    watts: 625,
     inStock: true,
     image: "https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?auto=format&fit=crop&w=600&q=80"
   },
@@ -64,6 +69,7 @@ const solarMarketData = [
     type: "Longi Solar", 
     spec: "620W Advanced HPBC Cell", 
     rate: 26350, 
+    watts: 620,
     inStock: false,
     image: "https://images.unsplash.com/photo-1613665813446-82a78c468a1d?auto=format&fit=crop&w=600&q=80"
   },
@@ -74,6 +80,7 @@ const solarMarketData = [
     type: "Trina Solar", 
     spec: "630W Vertex S+ Generation", 
     rate: 26775, 
+    watts: 630,
     inStock: true,
     image: "https://images.unsplash.com/photo-1548345680-f5475ea5df84?auto=format&fit=crop&w=600&q=80"
   },
@@ -84,6 +91,7 @@ const solarMarketData = [
     type: "Trina Solar", 
     spec: "715W Ultra N-Type Module", 
     rate: 31102, 
+    watts: 715,
     inStock: true,
     image: "https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=600&q=80"
   },
@@ -94,6 +102,7 @@ const solarMarketData = [
     type: "Trina Solar", 
     spec: "725W High Performance Power", 
     rate: 29725, 
+    watts: 725,
     inStock: true,
     image: "https://images.unsplash.com/photo-1592833159155-c62df1b65634?auto=format&fit=crop&w=600&q=80"
   },
@@ -104,6 +113,7 @@ const solarMarketData = [
     type: "Jinko Solar", 
     spec: "705W Tiger Neo Series", 
     rate: 33135, 
+    watts: 705,
     inStock: false,
     image: "https://images.unsplash.com/photo-1624397640148-949b1732bb0a?auto=format&fit=crop&w=600&q=80"
   },
@@ -114,6 +124,7 @@ const solarMarketData = [
     type: "Jinko Solar", 
     spec: "620W Smart Grid Version", 
     rate: 26660, 
+    watts: 620,
     inStock: false,
     image: "https://images.unsplash.com/photo-1613665813446-82a78c468a1d?auto=format&fit=crop&w=600&q=80"
   },
@@ -124,11 +135,12 @@ const solarMarketData = [
     type: "Risen Solar", 
     spec: "740W Heterojunction Technology", 
     rate: 31450, 
+    watts: 740,
     inStock: true,
     image: "https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?auto=format&fit=crop&w=600&q=80"
   },
 
-  // --- 12 SMART INVERTERS (Direct Public Folder .jpg Assets) ---
+  // --- 12 SMART INVERTERS ---
   { 
     id: 13, 
     category: "inverters", 
@@ -137,7 +149,7 @@ const solarMarketData = [
     spec: "6 KW Single Phase Hybrid Unit", 
     rate: 215000, 
     inStock: true,
-    image: "/inverter 1.jpg" // 👈 Tumhara direct local public asset folder ka path
+    image: "/inverter 1.jpg" 
   },
   { 
     id: 14, 
@@ -254,9 +266,51 @@ const solarMarketData = [
 export default function SolarRates() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("panels");
+  const [catalogData, setCatalogData] = useState(initialSolarMarketData);
+  const [isLive, setIsLive] = useState(false);
+
+  // Supabase live API sync logic
+  useEffect(() => {
+    async function syncCatalogWithDatabase() {
+      try {
+        const response = await fetch("/api/rates");
+        if (!response.ok) throw new Error("Data stream slow hai");
+        
+        const liveDbRates = await response.json();
+        
+        if (liveDbRates && liveDbRates.length > 0) {
+          const updatedCatalog = initialSolarMarketData.map((item) => {
+            if (item.category === "panels") {
+              // Brand matching logic to find the per-watt scraped price
+              const matchingLiveItem = liveDbRates.find(dbItem => 
+                dbItem.item_name.toLowerCase().includes(item.type.toLowerCase())
+              );
+
+              // Agar per-watt rate mil jaye, toh plate pricing calculate karke state update hogi
+              if (matchingLiveItem && matchingLiveItem.price) {
+                return {
+                  ...item,
+                  rate: Math.round(item.watts * matchingLiveItem.price),
+                  inStock: true 
+                };
+              }
+            }
+            return item;
+          });
+
+          setCatalogData(updatedCatalog);
+          setIsLive(true);
+        }
+      } catch (error) {
+        console.error("Database connection bypass, working on standard matrix:", error);
+      }
+    }
+
+    syncCatalogWithDatabase();
+  }, []);
 
   // Filtering System
-  const filteredData = solarMarketData.filter((item) => {
+  const filteredData = catalogData.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           item.type.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = item.category === activeCategory;
@@ -271,8 +325,10 @@ export default function SolarRates() {
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           
           <div className="text-center max-w-2xl mx-auto mb-12 space-y-3">
-            <span className="bg-green-100 text-green-800 text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
-              📊 Live Market Pricing
+            <span className={`text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider transition-all duration-300 ${
+              isLive ? "bg-green-100 text-green-800 animate-pulse" : "bg-amber-100 text-amber-800"
+            }`}>
+              {isLive ? "● Live Database Connected" : "📊 Standard Price Card"}
             </span>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">
               Solar Equipment & <span className="text-green-600">Inverter Price Card</span>
@@ -346,7 +402,9 @@ export default function SolarRates() {
                     {/* Rates Line & Details Redirect Button */}
                     <div className="border-t border-gray-100 pt-3 flex flex-col space-y-2">
                       <div>
-                        <span className="text-[9px] font-bold text-gray-400 uppercase block tracking-wider">Estimated Rate</span>
+                        <span className="text-[9px] font-bold text-gray-400 uppercase block tracking-wider">
+                          {item.category === "panels" && isLive ? "Live Sync Rate" : "Estimated Rate"}
+                        </span>
                         <span className="text-base font-black text-[#D93838]">
                           Rs. {item.rate.toLocaleString()}
                         </span>

@@ -1,14 +1,16 @@
 "use client";
+import { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
-// Real-world 2026 Estimated Complete Solar System Packages for Pakistan
-const solarPackages = [
+// Base packages template data (price key string se state integer calculation par shift hogi)
+const initialSolarPackages = [
   {
     id: 1,
     name: "3 KW Smart Eco Package",
     type: "On-Grid / Hybrid Option",
-    price: "345,000",
+    capacityWatts: 3000,
+    basePrice: 345000, // Fallback base pricing
     load: "1 Inverter AC (1.5 Ton), 4 Fans, 10 Lights, 1 LED TV, 1 Fridge.",
     specs: [
       "Tier-1 Longi/Jinko 575W+ Panels",
@@ -24,7 +26,8 @@ const solarPackages = [
     id: 2,
     name: "5 KW Premium Home Package",
     type: "Net-Metering Ready System",
-    price: "585,000",
+    capacityWatts: 5000,
+    basePrice: 585000, // Fallback base pricing
     load: "2 Inverter ACs (1.5 Ton), 6 Fans, 15 Lights, Water Pump, Fridge.",
     specs: [
       "Tier-1 N-Type BiFacial Solar Panels",
@@ -40,7 +43,8 @@ const solarPackages = [
     id: 3,
     name: "10 KW Max Power Package",
     type: "Three-Phase Net-Metering System",
-    price: "975,000",
+    capacityWatts: 10000,
+    basePrice: 975000, // Fallback base pricing
     load: "4 Inverter ACs, 10 Fans, Complete Home Lighting, Microwave, Deep Freezer.",
     specs: [
       "Tier-1 High-Efficiency TopCon Panels",
@@ -55,6 +59,56 @@ const solarPackages = [
 ];
 
 export default function Packages() {
+  const [packages, setPackages] = useState(initialSolarPackages);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    async function syncPackagesWithLiveRates() {
+      try {
+        const response = await fetch("/api/rates");
+        if (!response.ok) throw new Error("Database lag detected");
+
+        const liveDbRates = await response.json();
+
+        if (liveDbRates && liveDbRates.length > 0) {
+          // Industry baseline standard rate check (Longi/Jinko array filter match)
+          const matchedItem = liveDbRates.find(item => 
+            item.item_name.toLowerCase().includes("longi") || 
+            item.item_name.toLowerCase().includes("jinko")
+          );
+
+          // Agar live single watt cost milti hai (e.g. Rs. 32), toh system dynamic set hoga
+          if (matchedItem && matchedItem.price) {
+            const livePerWattPrice = matchedItem.price;
+
+            const updatedPackages = initialSolarPackages.map((pkg) => {
+              // Formula: Total Panels cost based on live dynamic values + Fixed infrastructure/Inverter/Permit cost asset margin
+              let customInfratructureCost = 0;
+              
+              if (pkg.capacityWatts === 3000) customInfratructureCost = 240000;
+              else if (pkg.capacityWatts === 5000) customInfratructureCost = 415000;
+              else if (pkg.capacityWatts === 10000) customInfratructureCost = 645000;
+
+              const calculatedTotal = (pkg.capacityWatts * livePerWattPrice) + customInfratructureCost;
+
+              return {
+                ...pkg,
+                basePrice: calculatedTotal
+              };
+            });
+
+            setPackages(updatedPackages);
+            setIsLive(true);
+          }
+        }
+      } catch (error) {
+        console.error("Working on hardcoded internal values matrix:", error);
+      }
+    }
+
+    syncPackagesWithLiveRates();
+  }, []);
+
   return (
     <main className="min-h-screen bg-gray-50/50 flex flex-col justify-between">
       <div>
@@ -64,8 +118,10 @@ export default function Packages() {
           
           {/* Top Banner Header */}
           <div className="text-center max-w-2xl mx-auto mb-16 space-y-3">
-            <span className="bg-amber-100 text-amber-800 text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
-              📦 All-In-One Deals
+            <span className={`text-[11px] font-bold px-4 py-1.5 rounded-full uppercase tracking-wider transition-all duration-300 ${
+              isLive ? "bg-green-100 text-green-800 animate-pulse" : "bg-amber-100 text-amber-800"
+            }`}>
+              {isLive ? "● Dynamic Tariffs Integrated" : "📦 All-In-One Deals"}
             </span>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">
               Turnkey Solar <span className="text-green-600">Installation Packages</span>
@@ -77,7 +133,7 @@ export default function Packages() {
 
           {/* Pricing Packages Grids */}
           <div className="grid lg:grid-cols-3 gap-8 items-stretch">
-            {solarPackages.map((pkg) => (
+            {packages.map((pkg) => (
               <div 
                 key={pkg.id} 
                 className={`bg-white rounded-3xl p-6 sm:p-8 flex flex-col justify-between relative border transition-all duration-300 ${
@@ -104,9 +160,11 @@ export default function Packages() {
                   
                   {/* Price Section */}
                   <div className="mb-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                    <span className="text-[10px] text-gray-400 font-bold block uppercase tracking-wider">Estimated Setup Price</span>
+                    <span className="text-[10px] text-gray-400 font-bold block uppercase tracking-wider">
+                      {isLive ? "Live Sync Cost" : "Estimated Setup Price"}
+                    </span>
                     <span className="text-2xl sm:text-3xl font-black text-gray-900">
-                      Rs. {pkg.price}
+                      Rs. {Math.round(pkg.basePrice).toLocaleString()}
                     </span>
                     <span className="text-[9px] font-bold text-gray-400 block mt-0.5">*Varies slightly by structure height</span>
                   </div>
