@@ -1,18 +1,31 @@
+"use client";
+import { useState } from "react";
 import Link from "next/link";
 
 export default function Footer() {
+  const [logoFailed, setLogoFailed] = useState(false);
+
   return (
     <footer className="bg-gray-950 text-gray-400 pt-16 pb-8 border-t border-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
         
         {/* Column 1: Brand & About */}
         <div className="space-y-4">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-2xl">☀️</span>
-            <span className="text-xl font-black tracking-tight text-white">
-              PAK SOLAR<span className="text-green-500">ENERGY</span>
-            </span>
+          <Link href="/" className="flex items-center group">
+            {!logoFailed ? (
+              <img 
+                src="/pak-solar-logo.png" 
+                alt="Pak Solar Energy Logo" 
+                className="h-16 w-auto object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+                onError={() => setLogoFailed(true)}
+              />
+            ) : (
+              <span className="text-xl font-black tracking-tight text-white">
+                PAK SOLAR<span className="text-green-500">ENERGY</span>
+              </span>
+            )}
           </Link>
+          
           <p className="text-xs font-medium leading-relaxed text-gray-400">
             Providing transparent, reliable, and Tier-1 certified solar energy solutions across Pakistan. Powered by authentic engineering audits.
           </p>

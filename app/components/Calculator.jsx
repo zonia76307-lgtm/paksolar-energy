@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-// Next.js Router navigation import karna
 import { useRouter } from "next/navigation";
 
 export default function Calculator() {
@@ -18,20 +17,20 @@ export default function Calculator() {
         
         const data = await response.json();
         
-        // Kisi specific industry-standard panel ka live rate nikalna (e.g., Longi)
+        // Kisi specific industry-standard panel ka live rate nikalna (e.g., Longi ya Himo)
         const standardPanel = data.find(item => 
-          item.item_name.toLowerCase().includes("longi") || 
-          item.item_name.toLowerCase().includes("himo")
+          item.item_name?.toLowerCase().includes("longi") || 
+          item.item_name?.toLowerCase().includes("himo")
         );
 
-        // Agar database se price mil jaye toh state update karein, warna default 32 par chale
+        // Agar database se price mil jaye toh state update karein
         if (standardPanel && standardPanel.price) {
-          setPanelRate(standardPanel.price);
+          setPanelRate(Number(standardPanel.price));
         }
       } catch (error) {
         console.error("Live rates loading error:", error);
       } finally {
-        boxLoading(false);
+        setLoading(false);
       }
     }
 
@@ -46,7 +45,7 @@ export default function Calculator() {
   const totalWatts = estimatedKW * 1000;
   const panelCost = totalWatts * panelRate;
   
-  // Approximate structural, inverter, and installation costs base on system sizing
+  // Structural, inverter, and installation costs based on system sizing
   const extraCosts = estimatedKW > 0 ? (estimatedKW * 25000) + 150000 : 0; 
   const estimatedTotalCost = panelCost + extraCosts;
 
@@ -55,12 +54,7 @@ export default function Calculator() {
     const size = estimatedKW > 0 ? estimatedKW : 0;
     const price = Math.round(estimatedTotalCost);
     
-    // Aapke quotes/form wale page ka path agar "/quote" hai (Aap isay badal sakti hain agar routing alag hai)
     router.push(`/quote?size=${size}&price=${price}`);
-  };
-
-  const boxLoading = (val) => {
-    setLoading(val);
   };
 
   return (

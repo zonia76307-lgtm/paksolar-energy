@@ -1,41 +1,78 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-// Next.js static caching ko disable karne ke liye (Taake har bar database se taaza rate aaye)
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+// 1. GET: Fetch all items with images
 export async function GET() {
   try {
-    // solar_rates table se data fetch karna
     const { data, error } = await supabase
       .from("solar_rates")
-      .select("id, item_name, price, category, updated_at")
+      .select("id, item_name, price, category, image_url, updated_at")
       .order("updated_at", { ascending: false });
 
-    if (error) {
-      console.error("Supabase Database Stream Error:", error.message);
-      return NextResponse.json(
-        { error: `Database error: ${error.message}` }, 
-        { status: 400 }
-      );
+    if (error) throw error;
+
+    const sanitizedData = data.map((item) => ({
+      ...item,
+      category: item.category || "Other",
+      image_url: item.image_url || "" // Default handle kiya
+    }));
+
+    return NextResponse.json(sanitizedData, { status: 200 });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// 2. POST: Add product with Image URL
+export async function POST(req) {
+  try {
+    const { item_name, price, category, image_url } = await req.json();
+
+    if (!item_name || !price || !category) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Response headers set karna taake browser cache bilkul zero ho jaye
-    return new NextResponse(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store, max-age=0, must-revalidate",
-        "Pragma": "no-cache",
-      },
-    });
+    const { data, error } = await supabase
+      .from("solar_rates")
+      .insert([{ 
+        item_name, 
+        price: Number(price), 
+        category, 
+        image_url: image_url || null, // Image URL column map ho gaya
+        updated_at: new Date().toISOString() 
+      }])
+      .select();
 
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (err) {
-    console.error("Server Crash Handling Matrix:", err);
-    return NextResponse.json(
-      { error: "Internal Server Error inside API Stream Route" }, 
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// 3. DELETE: Same as before
+export async function DELETE(req) {
+  try {
+    const { url } = req;
+    const id = url.split("?id=")[1];
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing item ID" }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("solar_rates")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, message: "Deleted successfully" }, { status: 200 });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
