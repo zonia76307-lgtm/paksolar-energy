@@ -8,12 +8,12 @@ export async function POST(req) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
-    const apiKey = process.env.GROK_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
 
     if (!apiKey) {
-      console.error("❌ GROK_API_KEY is missing in .env.local");
+      console.error("❌ GROQ_API_KEY is missing in .env.local");
       return NextResponse.json({
-        reply: "System Note: GROK_API_KEY missing hai. .env.local file check karein."
+        reply: "System Note: GROQ_API_KEY missing hai. .env.local file check karein."
       });
     }
 
@@ -27,15 +27,15 @@ export async function POST(req) {
       4. For complete 3kW/5kW/10kW packages or quotes, give rough estimate and ask them to contact WhatsApp/Team (+92 300 0000000).
     `;
 
-    // xAI Grok API Endpoint Call
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    // Groq API Endpoint Call (Using Groq Llama 3.3 Model)
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "grok-beta", // Ya "grok-2-latest"
+        model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: message },
@@ -47,9 +47,9 @@ export async function POST(req) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error("❌ Grok API Error Response:", data);
+      console.error("❌ Groq API Error Response:", data);
       return NextResponse.json({
-        reply: `API Error: ${data?.error?.message || "Grok API response failed"}`
+        reply: `API Error: ${data?.error?.message || "Groq API response failed"}`
       });
     }
 
@@ -59,7 +59,7 @@ export async function POST(req) {
       return NextResponse.json({ reply }, { status: 200 });
     } else {
       return NextResponse.json({
-        reply: "Maazrat, Grok response generate nahi ho saka."
+        reply: "Maazrat, Groq response generate nahi ho saka."
       });
     }
 
