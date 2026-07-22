@@ -1,145 +1,398 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
 
-export default function ChatBox() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState([
-    { role: "assistant", content: "Assalam-o-Alaikum! Main Pak Solar AI Assistant hoon. Aaj main aapki solar calculations ya packages ke hawale se kya madad kar sakta hoon?" }
-  ]);
+import { useEffect, useRef, useState } from "react";
+
+// --- Inline SVG Icons (Lucide dependency removed to fix Module Not Found error) ---
+function BotIcon({ className }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" />
+    </svg>
+  );
+}
+
+function LoaderIcon({ className }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
+  );
+}
+
+function MessageCircleIcon({ className }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+    </svg>
+  );
+}
+
+function SendIcon({ className }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
+    </svg>
+  );
+}
+
+function XIcon({ className }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+function WhatsAppIcon({ className }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5.1 18.7 6 15.4a7.2 7.2 0 1 1 2.8 2.7l-3.7.6Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9.3 8.6c.2-.4.4-.4.7-.4h.5c.2 0 .4 0 .5.4l.7 1.6c.1.3.1.5-.1.7l-.4.5c-.1.1-.2.3 0 .5.5.9 1.2 1.6 2.1 2.1.2.1.4.1.5-.1l.5-.6c.2-.2.4-.2.7-.1l1.6.8c.3.1.4.3.4.6 0 .5-.2 1-.6 1.3-.5.4-1.2.6-1.9.5-1.5-.2-3.1-1-4.4-2.3-1.3-1.3-2.2-2.9-2.4-4.4-.1-.7.1-1.3.5-1.8.2-.3.4-.6.8-.9Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+const initialMessages = [];
+
+const quickActions = [
+  { label: "Solar Rates", message: "Longi aur Canadian plates ke current rates kya hain?" },
+  { label: "Free Quote", message: "Mujhe solar installation ke liye quote chahiye" },
+  { label: "Inverters", message: "Top solar inverters konsay hain?" },
+  { label: "Packages", message: "Complete 5kW system package ka kya kharcha hai?" },
+];
+
+function createId(prefix = "msg") {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function cleanMarkdownMarks(value) {
+  return value
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/\*\*/g, "*")
+    .replace(/^\*+|\*+$/g, "")
+    .trim();
+}
+
+function stripInlineMarkdown(value) {
+  return value.replace(/[*_`]/g, "");
+}
+
+function normalizeLinkHref(value) {
+  const cleanValue = value.trim().replace(/[.,;:]+$/, "");
+  if (/^(https?:|tel:|mailto:)/i.test(cleanValue)) {
+    return cleanValue;
+  }
+  return `https://${cleanValue.replace(/^\/+/, "")}`;
+}
+
+function renderLink(label, href, key) {
+  const cleanHref = normalizeLinkHref(href);
+  const cleanLabel = stripInlineMarkdown(label).trim().replace(/[.,;:]+$/, "");
+  return (
+    <a
+      key={key}
+      href={cleanHref}
+      target={cleanHref.startsWith("http") ? "_blank" : undefined}
+      rel={cleanHref.startsWith("http") ? "noreferrer" : undefined}
+      className="break-words font-semibold text-green-700 underline underline-offset-2"
+    >
+      {cleanLabel || cleanHref.replace(/^https?:\/\//, "")}
+    </a>
+  );
+}
+
+function renderInlineText(line) {
+  const cleanLine = line
+    .replace(/\*\*/g, "*")
+    .replace(/(^|\s)([A-Z][A-Za-z &/-]{2,40}):\*/g, "$1*$2:*");
+  const tokenPattern =
+    /(\[[^\]]+\]\((?:https?:\/\/|www\.|(?:[a-z0-9-]+\.)+[a-z]{2,})[^)\s]*\)|\*[^*]+\*|https?:\/\/[^\s)\]]+|www\.[^\s)\]]+|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s)\]]*)?)/gi;
+  const elements = [];
+  let cursor = 0;
+  let match;
+  while ((match = tokenPattern.exec(cleanLine))) {
+    const [token] = match;
+    if (match.index > cursor) {
+      const text = stripInlineMarkdown(cleanLine.slice(cursor, match.index));
+      if (text) {
+        elements.push(<span key={`text-${cursor}`}>{text}</span>);
+      }
+    }
+    const markdownLink = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (markdownLink) {
+      elements.push(renderLink(markdownLink[1], markdownLink[2], `link-${match.index}`));
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      elements.push(<strong key={`bold-${match.index}`}>{stripInlineMarkdown(token)}</strong>);
+    } else {
+      elements.push(renderLink(token.replace(/^https?:\/\//, ""), token, `link-${match.index}`));
+    }
+    cursor = match.index + token.length;
+  }
+  if (cursor < cleanLine.length) {
+    const text = stripInlineMarkdown(cleanLine.slice(cursor));
+    if (text) {
+      elements.push(<span key={`text-${cursor}`}>{text}</span>);
+    }
+  }
+  return elements.length ? elements : <span>{stripInlineMarkdown(cleanLine)}</span>;
+}
+
+function renderMessageText(content) {
+  const lines = content.split("\n");
+  const elements = [];
+  lines.forEach((rawLine, index) => {
+    const trimmed = rawLine.trim();
+    if (!trimmed || /^-{3,}$/.test(trimmed)) return;
+    const isHeading = /^#{1,6}\s+/.test(trimmed);
+    const bullet = trimmed.match(/^[-*•]\s+(.+)$/);
+    const numbered = trimmed.match(/^(\d+)[.)]\s+(.+)$/);
+    const line = cleanMarkdownMarks(bullet?.[1] ?? numbered?.[2] ?? trimmed);
+    if (!line) return;
+    const key = `${line}-${index}`;
+    if (numbered) {
+      elements.push(
+        <div key={key} className="mt-1.5 flex gap-2 first:mt-0">
+          <span className="w-5 shrink-0 text-right text-[12px] font-bold opacity-70">
+            {numbered[1]}.
+          </span>
+          <span className="min-w-0">{renderInlineText(cleanMarkdownMarks(numbered[2]))}</span>
+        </div>
+      );
+      return;
+    }
+    if (bullet) {
+      elements.push(
+        <div key={key} className="mt-1.5 flex gap-2 first:mt-0">
+          <span className="mt-[0.6em] h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-50" />
+          <span className="min-w-0">{renderInlineText(line)}</span>
+        </div>
+      );
+      return;
+    }
+    elements.push(
+      <p
+        key={key}
+        className={
+          isHeading ? "mt-3 first:mt-0 text-[13px] font-bold leading-snug" : "mt-1.5 first:mt-0"
+        }
+      >
+        {renderInlineText(line)}
+      </p>
+    );
+  });
+  return elements.length ? elements : <p>{renderInlineText(content)}</p>;
+}
+
+export default function Chatbot() {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef(null);
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isOpen]);
+    if (!open) return;
+    scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, sending, open]);
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
+  async function sendMessage(rawMessage) {
+    const message = rawMessage.trim();
+    if (!message || sending) return;
 
-    const userMsg = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMsg]);
     setInput("");
-    setLoading(true);
+    setSending(true);
+
+    setMessages((current) => [
+      ...current,
+      { id: createId("user"), role: "user", content: message },
+    ]);
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
+        body: JSON.stringify({ message }),
       });
 
-      // Agar server 200 ke ilawa koi status de
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log("Chat Response Data:", data); // 👈 Browser console mein response data debug karne ke liye
+      const payload = await response.json();
 
-      // Check karein ke response mein actual data standard form mein hai ya nahi
-      if (data && data.content) {
-        setMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
-      } else if (data && data.error) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: `API Error: ${data.error}` }
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "Server se khali response mila hai." }
-        ]);
+      if (!response.ok) {
+        throw new Error(payload?.error || "Chat request failed.");
       }
+
+      setMessages((current) => [
+        ...current,
+        {
+          id: createId("assistant"),
+          role: "assistant",
+          content:
+            typeof payload?.reply === "string"
+              ? payload.reply
+              : "Shukriya! Live assistance ke liye hum se WhatsApp par rabta karein.",
+        },
+      ]);
     } catch (error) {
-      console.error("Frontend Chat Fetch Error:", error);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `Technical Error: ${error.message}. Please refresh page.` }
+      console.error(error);
+      setMessages((current) => [
+        ...current,
+        {
+          id: createId("assistant"),
+          role: "assistant",
+          content: [
+            "Network issue ki wajah se response nahi mil saka.",
+            "",
+            "Call ya WhatsApp par rabta karein:",
+            "📞 +92 300 0000000",
+            "",
+            "Ya website par free quote submit karein:",
+            "https://paksolar-energy.vercel.app/get-free-quote",
+          ].join("\n"),
+        },
       ]);
     } finally {
-      setLoading(false);
+      setSending(false);
     }
-  };
+  }
+
+  function onSubmit(event) {
+    event.preventDefault();
+    void sendMessage(input);
+  }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 font-sans">
-      {/* 1. Floating Chat Button */}
-      {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="bg-green-600 hover:bg-green-700 text-white p-4 rounded-full shadow-2xl transition-transform hover:scale-110 flex items-center justify-center cursor-pointer border-none"
+    <div
+      className={
+        open
+          ? "fixed inset-x-2 bottom-4 top-4 z-50 flex flex-col sm:inset-x-auto sm:bottom-6 sm:right-6 sm:top-auto sm:block"
+          : "fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6"
+      }
+    >
+      {open ? (
+        <section
+          className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl sm:mb-3 sm:h-[min(42rem,calc(100dvh-7rem))] sm:w-[24rem] sm:max-w-[24rem] sm:flex-none"
+          aria-label="Pak Solar Energy chat"
         >
-          {/* Chat Icon */}
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 18a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 13.172 3 11.24 3 9c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-          </svg>
-        </button>
-      )}
-
-      {/* 2. Chat Window */}
-      {isOpen && (
-        <div className="bg-white w-[350px] h-[480px] rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden transition-all">
           {/* Header */}
-          <div className="bg-gradient-to-r from-green-600 to-emerald-700 text-white p-4 flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-green-300 animate-pulse"></span>
-              <div>
-                <h4 className="text-sm font-bold leading-none">Pak Solar Assistant</h4>
-                <span className="text-[10px] text-green-100">Active (AI Online)</span>
+          <div className="flex items-center justify-between gap-3 border-b border-gray-200 bg-green-700 px-4 py-3 text-white">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-green-800 text-white">
+                <BotIcon className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-bold">Pak Solar Assistant</h2>
+                <p className="truncate text-xs text-green-100">Live Rates & Solutions</p>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="text-white hover:text-gray-200 text-2xl font-semibold cursor-pointer border-none bg-transparent">
-              ×
-            </button>
-          </div>
-
-          {/* Messages Container */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50/60">
-            {messages.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-2 text-[13px] leading-relaxed shadow-sm ${
-                    msg.role === "user"
-                      ? "bg-green-600 text-white rounded-br-none"
-                      : "bg-white text-gray-800 border border-gray-100 rounded-bl-none"
-                  }`}
-                >
-                  {msg.content}
-                </div>
-              </div>
-            ))}
-            {loading && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-gray-100 text-gray-400 rounded-2xl rounded-bl-none px-4 py-2 text-xs shadow-sm flex items-center gap-1">
-                  <span className="animate-bounce">●</span>
-                  <span className="animate-bounce [animation-delay:0.2s]">●</span>
-                  <span className="animate-bounce [animation-delay:0.4s]">●</span>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Chat Form */}
-          <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-gray-100 flex gap-2 items-center">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Sawal likhein..."
-              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-green-600 text-black"
-            />
             <button
-              type="submit"
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors border-none"
+              type="button"
+              onClick={() => setOpen(false)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-green-100 transition-colors hover:bg-green-800 hover:text-white"
+              aria-label="Close chat"
             >
-              Send
+              <XIcon className="h-4 w-4" />
             </button>
-          </form>
-        </div>
-      )}
+          </div>
+
+          {/* Messages Feed */}
+          <div className="flex-1 overflow-y-auto bg-gray-50 px-3 py-4">
+            <div className="space-y-3">
+              {messages.length === 0 && (
+                <div className="py-12 text-center text-xs text-gray-400">
+                  👋 Ask about solar panels, live rates, or inverters...
+                </div>
+              )}
+
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={
+                      "break-words rounded-xl px-3 py-2 text-[13px] leading-5 shadow-sm " +
+                      (message.role === "user"
+                        ? "max-w-[82%] bg-green-600 text-white"
+                        : "max-w-[90%] border border-gray-200 bg-white text-gray-800")
+                    }
+                  >
+                    {renderMessageText(message.content)}
+                  </div>
+                </div>
+              ))}
+
+              {sending && (
+                <div className="flex justify-start">
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 shadow-sm">
+                    <LoaderIcon className="h-4 w-4 animate-spin" />
+                    Searching details...
+                  </div>
+                </div>
+              )}
+              <div ref={scrollRef} />
+            </div>
+          </div>
+
+          {/* Quick Buttons & Input Form */}
+          <div className="border-t border-gray-200 bg-white p-3">
+            <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+              {quickActions.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  disabled={sending}
+                  onClick={() => void sendMessage(action.message)}
+                  className="shrink-0 rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-green-50 hover:text-green-700 disabled:opacity-50 cursor-pointer"
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={onSubmit} className="flex items-center gap-2">
+              <input
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="Ask Pak Solar Assistant..."
+                className="min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-shadow text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-green-600/35"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || sending}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-green-600 text-white shadow-sm transition-colors hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+                aria-label="Send message"
+              >
+                {sending ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <SendIcon className="h-4 w-4" />}
+              </button>
+            </form>
+          </div>
+        </section>
+      ) : null}
+
+      {/* Floating Trigger Buttons */}
+      <div className={open ? "hidden items-center justify-end gap-2 sm:flex" : "flex items-center justify-end gap-2"}>
+        {open && (
+          <a
+            href="https://wa.me/923000000000"
+            target="_blank"
+            rel="noreferrer"
+            className="hidden h-12 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 shadow-lg transition-colors hover:bg-gray-50 sm:inline-flex"
+          >
+            <WhatsAppIcon className="h-4 w-4 text-green-600" />
+            WhatsApp
+          </a>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          className="flex h-14 w-14 items-center justify-center rounded-xl bg-green-600 text-white shadow-xl transition-transform hover:-translate-y-0.5 hover:bg-green-700 cursor-pointer"
+          aria-label={open ? "Hide chat" : "Open chat"}
+        >
+          {open ? <XIcon className="h-6 w-6" /> : <MessageCircleIcon className="h-6 w-6" />}
+        </button>
+      </div>
     </div>
   );
 }

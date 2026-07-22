@@ -2,42 +2,72 @@ import { NextResponse } from "next/server";
 
 export async function POST(req) {
   try {
-    const { messages } = await req.json();
+    const { message } = await req.json();
+
+    if (!message || !message.trim()) {
+      return NextResponse.json({ error: "Message is required" }, { status: 400 });
+    }
+
+    const apiKey = process.env.GROK_API_KEY;
+
+    if (!apiKey) {
+      console.error("❌ GROK_API_KEY is missing in .env.local");
+      return NextResponse.json({
+        reply: "System Note: GROK_API_KEY missing hai. .env.local file check karein."
+      });
+    }
 
     const systemPrompt = `
-      You are "Pak Solar AI Support", a professional, friendly, and helpful AI assistant for Pak Solar Energy. 
-      Your goals are:
-      1. Answer user queries about solar panels, systems (3KW, 5KW, 10KW, etc.), and estimation in Urdu (Roman Urdu) or English.
-      2. Keep answers short, friendly, and professional.
-      3. Use the following context when asked about rates/pricing: "The current live solar market price is approximately Rs. 32 per watt."
-      4. Gently ask for the user's Name, Phone Number, and City if they ask for a detailed quote, so our team can call them back. Do not be pushy, but try to collect this contact info.
+      You are an expert AI solar consultant for 'Pak Solar Energy' in Pakistan.
+
+      Rules:
+      1. If asked in Urdu/Roman Urdu, reply in Roman Urdu. If in English, reply in English.
+      2. Keep replies short, precise, direct and polite.
+      3. Solar plates rate in Pakistan: ~Rs. 28-34 per watt (Longi Hi-MO 6/7, Canadian N-Type, Jinko).
+      4. For complete 3kW/5kW/10kW packages or quotes, give rough estimate and ask them to contact WhatsApp/Team (+92 300 0000000).
     `;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            { role: "user", parts: [{ text: systemPrompt }] },
-            ...messages.map((m) => ({
-              role: m.role === "assistant" ? "model" : "user",
-              parts: [{ text: m.content }],
-            })),
-          ],
-        }),
-      }
-    );
+    // xAI Grok API Endpoint Call
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "grok-beta", // Ya "grok-2-latest"
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: message },
+        ],
+        temperature: 0.7,
+      }),
+    });
 
     const data = await response.json();
-    const botReply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, system currently busy hai. Please call our representative.";
 
-    return NextResponse.json({ role: "assistant", content: botReply });
+    if (!response.ok) {
+      console.error("❌ Grok API Error Response:", data);
+      return NextResponse.json({
+        reply: `API Error: ${data?.error?.message || "Grok API response failed"}`
+      });
+    }
+
+    const reply = data?.choices?.[0]?.message?.content;
+
+    if (reply) {
+      return NextResponse.json({ reply }, { status: 200 });
+    } else {
+      return NextResponse.json({
+        reply: "Maazrat, Grok response generate nahi ho saka."
+      });
+    }
+
   } catch (error) {
-    console.error("Chat API Error:", error);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    console.error("❌ Server Error:", error);
+    return NextResponse.json(
+      { reply: "Server error occurred. Please try again." },
+      { status: 500 }
+    );
   }
 }
